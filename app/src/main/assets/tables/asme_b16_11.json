@@ -1,0 +1,294 @@
+{
+ "standard": "ASME B16.11",
+ "note": "Class 3000 socket weld. Centre to bottom of socket; coupling value is the gap between socket bottoms. mm = in x 25.4.",
+ "sources": [
+  {
+   "publisher": "Bonney Forge",
+   "catalogue": "Forged Steel Fittings and Unions",
+   "year": null,
+   "pages": "6, 7, 8, 14",
+   "url": "https://cad.bonneyforge.com/Asset/Forged-Steel-Fittings-and-Unions.pdf"
+  },
+  {
+   "publisher": "Anvil International",
+   "catalogue": "Pipe Fittings and Steel Nipples catalogue, Forged Steel Fittings, Class 3000 Socket Weld, figures 2150 to 2154",
+   "year": null,
+   "pages": "100 to 102",
+   "url": "https://www.apsupplies.com/wp-content/uploads/anvil-fittings.pdf"
+  }
+ ],
+ "fittings": [
+  {
+   "id": "SW_90",
+   "name": "90 elbow",
+   "dimension": "A",
+   "measuredTo": "centre",
+   "rows": [
+    {
+     "nps": "1/8",
+     "in": 0.4375,
+     "mm": 11.11
+    },
+    {
+     "nps": "1/4",
+     "in": 0.4375,
+     "mm": 11.11
+    },
+    {
+     "nps": "3/8",
+     "in": 0.53125,
+     "mm": 13.49
+    },
+    {
+     "nps": "1/2",
+     "in": 0.625,
+     "mm": 15.88
+    },
+    {
+     "nps": "3/4",
+     "in": 0.75,
+     "mm": 19.05
+    },
+    {
+     "nps": "1",
+     "in": 0.875,
+     "mm": 22.22
+    },
+    {
+     "nps": "1 1/4",
+     "in": 1.0625,
+     "mm": 26.99
+    },
+    {
+     "nps": "1 1/2",
+     "in": 1.25,
+     "mm": 31.75
+    },
+    {
+     "nps": "2",
+     "in": 1.5,
+     "mm": 38.1
+    },
+    {
+     "nps": "2 1/2",
+     "in": 1.625,
+     "mm": 41.27
+    },
+    {
+     "nps": "3",
+     "in": 2.25,
+     "mm": 57.15
+    },
+    {
+     "nps": "4",
+     "in": 2.625,
+     "mm": 66.67
+    }
+   ]
+  },
+  {
+   "id": "SW_45",
+   "name": "45 elbow",
+   "dimension": "A",
+   "measuredTo": "centre",
+   "rows": [
+    {
+     "nps": "1/8",
+     "in": 0.3125,
+     "mm": 7.94
+    },
+    {
+     "nps": "1/4",
+     "in": 0.3125,
+     "mm": 7.94
+    },
+    {
+     "nps": "3/8",
+     "in": 0.3125,
+     "mm": 7.94
+    },
+    {
+     "nps": "1/2",
+     "in": 0.4375,
+     "mm": 11.11
+    },
+    {
+     "nps": "3/4",
+     "in": 0.5,
+     "mm": 12.7
+    },
+    {
+     "nps": "1",
+     "in": 0.5625,
+     "mm": 14.29
+    },
+    {
+     "nps": "1 1/4",
+     "in": 0.6875,
+     "mm": 17.46
+    },
+    {
+     "nps": "1 1/2",
+     "in": 0.8125,
+     "mm": 20.64
+    },
+    {
+     "nps": "2",
+     "in": 1.0,
+     "mm": 25.4
+    },
+    {
+     "nps": "2 1/2",
+     "in": 1.125,
+     "mm": 28.57
+    },
+    {
+     "nps": "3",
+     "in": 1.25,
+     "mm": 31.75
+    },
+    {
+     "nps": "4",
+     "in": 1.625,
+     "mm": 41.27
+    }
+   ]
+  },
+  {
+   "id": "SW_TEE",
+   "name": "Tee",
+   "dimension": "A",
+   "measuredTo": "centre",
+   "rows": [
+    {
+     "nps": "1/8",
+     "in": 0.4375,
+     "mm": 11.11
+    },
+    {
+     "nps": "1/4",
+     "in": 0.4375,
+     "mm": 11.11
+    },
+    {
+     "nps": "3/8",
+     "in": 0.53125,
+     "mm": 13.49
+    },
+    {
+     "nps": "1/2",
+     "in": 0.625,
+     "mm": 15.88
+    },
+    {
+     "nps": "3/4",
+     "in": 0.75,
+     "mm": 19.05
+    },
+    {
+     "nps": "1",
+     "in": 0.875,
+     "mm": 22.22
+    },
+    {
+     "nps": "1 1/4",
+     "in": 1.0625,
+     "mm": 26.99
+    },
+    {
+     "nps": "1 1/2",
+     "in": 1.25,
+     "mm": 31.75
+    },
+    {
+     "nps": "2",
+     "in": 1.5,
+     "mm": 38.1
+    },
+    {
+     "nps": "2 1/2",
+     "in": 1.625,
+     "mm": 41.27
+    },
+    {
+     "nps": "3",
+     "in": 2.25,
+     "mm": 57.15
+    },
+    {
+     "nps": "4",
+     "in": 2.625,
+     "mm": 66.67
+    }
+   ]
+  },
+  {
+   "id": "SW_COUPLING",
+   "name": "Coupling",
+   "dimension": "E",
+   "measuredTo": "coupling centre (half of E each side)",
+   "rows": [
+    {
+     "nps": "1/8",
+     "in": 0.25,
+     "mm": 6.35
+    },
+    {
+     "nps": "1/4",
+     "in": 0.25,
+     "mm": 6.35
+    },
+    {
+     "nps": "3/8",
+     "in": 0.25,
+     "mm": 6.35
+    },
+    {
+     "nps": "1/2",
+     "in": 0.375,
+     "mm": 9.52
+    },
+    {
+     "nps": "3/4",
+     "in": 0.375,
+     "mm": 9.52
+    },
+    {
+     "nps": "1",
+     "in": 0.5,
+     "mm": 12.7
+    },
+    {
+     "nps": "1 1/4",
+     "in": 0.5,
+     "mm": 12.7
+    },
+    {
+     "nps": "1 1/2",
+     "in": 0.5,
+     "mm": 12.7
+    },
+    {
+     "nps": "2",
+     "in": 0.75,
+     "mm": 19.05
+    },
+    {
+     "nps": "2 1/2",
+     "in": 0.75,
+     "mm": 19.05
+    },
+    {
+     "nps": "3",
+     "in": 0.75,
+     "mm": 19.05
+    },
+    {
+     "nps": "4",
+     "in": 0.75,
+     "mm": 19.05
+    }
+   ]
+  }
+ ]
+}

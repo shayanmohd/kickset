@@ -1,0 +1,42 @@
+{
+  "background": [
+    "#4762EE",
+    "#2733BE"
+  ],
+  "text": "#FFFFFF",
+  "frame": "#0C2A73",
+  "font": "fonts/ArchivoNarrow-SemiBold.ttf",
+  "weight": 600,
+  "shots": [
+    {
+      "src": "screenshots-raw/01-cut-length.png",
+      "out": "screenshots/01-cut-length.png",
+      "caption": "Cut length after takeouts and gaps"
+    },
+    {
+      "src": "screenshots-raw/02-rolling-offset.png",
+      "out": "screenshots/02-rolling-offset.png",
+      "caption": "Offsets with the multiplier shown"
+    },
+    {
+      "src": "screenshots-raw/03-saddle-sheets.png",
+      "out": "screenshots/03-saddle-sheets.png",
+      "caption": "Wrap templates that print to scale"
+    },
+    {
+      "src": "screenshots-raw/04-pipe-data.png",
+      "out": "screenshots/04-pipe-data.png",
+      "caption": "Pipe schedules and flange bolts"
+    },
+    {
+      "src": "screenshots-raw/05-job-dark.png",
+      "out": "screenshots/05-job-dark.png",
+      "caption": "Save cuts to a job, export a PDF"
+    },
+    {
+      "src": "screenshots-raw/06-parallel-dark.png",
+      "out": "screenshots/06-parallel-dark.png",
+      "caption": "Parallel offsets for pipe racks"
+    }
+  ]
+}
