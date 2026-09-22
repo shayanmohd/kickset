@@ -215,11 +215,11 @@ class ShipFixesTest {
         // The headline was worked at the 3.0 mm default; today the default is 5 mm and the precision is finer.
         val today = UnitPrefs(UnitSystem.MM, 32, 0.5)
         val replayed = Replay.working("CUT_LENGTH", inputs, "MM", snapshot, today, 5.0, 2.0, Paper.A4, tables)
-        assertEquals("minus root gap 3.0 mm = cut 778.1 mm", replayed.last())
+        assertEquals("minus root gap 3.0 mm at both welds, 6.0 mm total = cut 778.1 mm", replayed.last())
 
         // Without a snapshot an old row still replays, on today's settings, which is the documented fallback.
         val noSnapshot = Replay.working("CUT_LENGTH", inputs, "MM", "", today, 5.0, 2.0, Paper.A4, tables)
-        assertEquals("minus root gap 5.0 mm = cut 774.1 mm", noSnapshot.last())
+        assertEquals("minus root gap 5.0 mm at both welds, 10.0 mm total = cut 774.1 mm", noSnapshot.last())
     }
 
     @Test
@@ -285,14 +285,14 @@ class ShipFixesTest {
         assertEquals("Advance 30 mm (1 3/16 in) per line, 8 lines at 300 mm spread, 11.25°", o.headline)
         assertEquals(
             listOf(
-                "Advance per line = spread 300.0 mm x tan(11.25° / 2) (0.0985) = 29.5 mm",
-                "Line 2: spread 300.0 mm x 0.0985 x 1 = 29.5 mm",
-                "Line 3: spread 300.0 mm x 0.0985 x 2 = 59.1 mm",
-                "Line 4: spread 300.0 mm x 0.0985 x 3 = 88.6 mm",
-                "Line 5: spread 300.0 mm x 0.0985 x 4 = 118.2 mm",
-                "Line 6: spread 300.0 mm x 0.0985 x 5 = 147.7 mm",
-                "Line 7: spread 300.0 mm x 0.0985 x 6 = 177.3 mm",
-                "Line 8: spread 300.0 mm x 0.0985 x 7 = 206.8 mm",
+                "Advance per line = spread 300.0 mm x tan(11.25° / 2) (0.09849) = 29.5 mm",
+                "Line 2: spread 300.0 mm x 0.09849 x 1 = 29.5 mm",
+                "Line 3: spread 300.0 mm x 0.09849 x 2 = 59.1 mm",
+                "Line 4: spread 300.0 mm x 0.09849 x 3 = 88.6 mm",
+                "Line 5: spread 300.0 mm x 0.09849 x 4 = 118.2 mm",
+                "Line 6: spread 300.0 mm x 0.09849 x 5 = 147.7 mm",
+                "Line 7: spread 300.0 mm x 0.09849 x 6 = 177.3 mm",
+                "Line 8: spread 300.0 mm x 0.09849 x 7 = 206.8 mm",
             ),
             o.working,
         )
@@ -307,8 +307,7 @@ class ShipFixesTest {
                 "Centre to centre 1000.0 mm",
                 "minus 90 LR elbow takeout 152.4 mm = 847.6 mm",
                 "minus 45 LR elbow takeout 63.5 mm = 784.1 mm",
-                "minus root gap 3.0 mm = 781.1 mm",
-                "minus root gap 3.0 mm = cut 778.1 mm",
+                "minus root gap 3.0 mm at both welds, 6.0 mm total = cut 778.1 mm",
             ),
             o.working,
         )
@@ -323,9 +322,8 @@ class ShipFixesTest {
             listOf(
                 "Centre to centre 500.0 mm",
                 "minus SW 90 elbow takeout 38.1 mm = 461.9 mm",
-                "minus SW coupling takeout 9.5 mm = 452.4 mm",
-                "minus engagement gap 1.6 mm = 450.8 mm",
-                "minus engagement gap 1.6 mm = cut 449.2 mm",
+                "minus SW coupling takeout 9.525 mm = 452.375 mm",
+                "minus engagement gap 1.6 mm at both ends, 3.2 mm total = cut 449.2 mm",
             ),
             o.working,
         )
@@ -339,9 +337,9 @@ class ShipFixesTest {
         assertEquals(
             listOf(
                 "Takeout = A90 152.4 mm x tan(11.25° / 2) (0.0985) = 15.0 mm",
-                "Centreline arc = 152.4 mm x 0.1963 rad = 29.9 mm",
-                "Outside arc = (152.4 mm + OD/2) x 0.1963 rad = 41.1 mm",
-                "Inside arc = (152.4 mm - OD/2) x 0.1963 rad = 18.7 mm",
+                "Centreline arc = A90 152.4 mm x 0.1963 rad = 29.9 mm",
+                "Outside arc = (A90 152.4 mm + OD/2 57.15 mm) x 0.1963 rad = 41.1 mm",
+                "Inside arc = (A90 152.4 mm - OD/2 57.15 mm) x 0.1963 rad = 18.7 mm",
             ),
             o.working,
         )

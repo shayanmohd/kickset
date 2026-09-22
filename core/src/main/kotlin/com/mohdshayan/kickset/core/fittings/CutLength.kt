@@ -64,19 +64,31 @@ object CutLength {
         return CutLengthOutcome.Ok(CutLengthResult(centreToCentreMm, a, b, gap, cut, a.fitting.join))
     }
 
+    /**
+     * Every figure in the chain is printed exactly, and every running total is worked from the printed
+     * figures, so the subtraction reads true off the screen. Both gaps come off on one line because a
+     * gap set in millimetres is no exact fraction of an inch: taking them off last leaves the rounding
+     * in the one place it belongs, the cut itself, which is the answer printed above the working.
+     */
     fun working(r: CutLengthResult, u: UnitPrefs): List<WorkLine> {
         val gapName = if (r.join == JoinType.BUTT_WELD) "root gap" else "engagement gap"
-        var running = r.centreToCentreMm
-        val lines = mutableListOf(WorkLine("Centre to centre ${u.working(running)}"))
-        running -= r.endA.takeoutMm
-        lines += WorkLine("minus ${r.endA.fitting.label} takeout ${u.working(r.endA.takeoutMm)} = ${u.working(running)}")
-        running -= r.endB.takeoutMm
-        lines += WorkLine("minus ${r.endB.fitting.label} takeout ${u.working(r.endB.takeoutMm)} = ${u.working(running)}")
-        running -= r.gapPerWeldMm
-        lines += WorkLine("minus $gapName ${u.working(r.gapPerWeldMm)} = ${u.working(running)}")
-        running -= r.gapPerWeldMm
-        lines += WorkLine("minus $gapName ${u.working(r.gapPerWeldMm)} = cut ${u.working(running)}")
-        return lines
+        val gapWhere = if (r.join == JoinType.BUTT_WELD) "both welds" else "both ends"
+        val ctoc = u.exact(r.centreToCentreMm)
+        val a = u.exact(r.endA.takeoutMm)
+        val b = u.exact(r.endB.takeoutMm)
+        val gap = u.exact(r.gapPerWeldMm)
+        val afterA = u.exact(ctoc.value - a.value)
+        val afterB = u.exact(afterA.value - b.value)
+        val gaps = u.exact(2.0 * gap.value)
+        // The cut is written from the answer above the working, finely enough that it is also what the
+        // printed chain comes to: the two can only part company where the exact cut sits on the half.
+        val cut = u.answer(r.cutMm) { u.at(afterB.value - gaps.value, it.level).text == it.text }
+        return listOf(
+            WorkLine("Centre to centre ${ctoc.text}"),
+            WorkLine("minus ${r.endA.fitting.label} takeout ${a.text} = ${afterA.text}"),
+            WorkLine("minus ${r.endB.fitting.label} takeout ${b.text} = ${afterB.text}"),
+            WorkLine("minus $gapName ${gap.text} at $gapWhere, ${gaps.text} total = cut ${cut.text}"),
+        )
     }
 }
 
@@ -100,10 +112,32 @@ object CutElbow {
         )
     }
 
-    fun working(r: CutElbowResult, u: UnitPrefs) = listOf(
-        WorkLine("Takeout = A90 ${u.working(r.a90Mm)} x tan(${angleLabel(r.angleDeg)} / 2) (${LengthFormatter.decimal(tan(rad(r.angleDeg) / 2), 4)}) = ${u.working(r.takeoutMm)}"),
-        WorkLine("Centreline arc = ${u.working(r.a90Mm)} x ${LengthFormatter.decimal(rad(r.angleDeg), 4)} rad = ${u.working(r.centrelineArcMm)}"),
-        WorkLine("Outside arc = (${u.working(r.a90Mm)} + OD/2) x ${LengthFormatter.decimal(rad(r.angleDeg), 4)} rad = ${u.working(r.outsideArcMm)}"),
-        WorkLine("Inside arc = (${u.working(r.a90Mm)} - OD/2) x ${LengthFormatter.decimal(rad(r.angleDeg), 4)} rad = ${u.working(r.insideArcMm)}"),
-    )
+    /**
+     * The radii are printed exactly and the two multipliers carry whatever places it takes for the
+     * products to come out as the marks printed beside them, so each line can be repeated on a
+     * calculator. The outside and inside radii are spelled out rather than left as "OD/2", which was
+     * a line nobody could check without looking the pipe OD up somewhere else.
+     */
+    fun working(r: CutElbowResult, u: UnitPrefs): List<WorkLine> {
+        val a90 = u.exact(r.a90Mm)
+        val od2 = u.exact(r.odMm / 2.0)
+        val outside = u.exact(a90.value + od2.value)
+        val inside = u.exact((a90.value - od2.value).coerceAtLeast(0.0))
+        val (takeout, half) = u.product(r.takeoutMm, a90.value, tan(rad(r.angleDeg) / 2.0))
+        // One radian figure serves all three arcs, so it carries the places the longest of them needs.
+        val centre = u.answer(r.centrelineArcMm)
+        val outsideArc = u.answer(r.outsideArcMm)
+        val insideArc = u.answer(r.insideArcMm)
+        val radians = LengthFormatter.multiplier(rad(r.angleDeg)) {
+            u.at(a90.value * it, centre.level).text == centre.text &&
+                u.at(outside.value * it, outsideArc.level).text == outsideArc.text &&
+                u.at(inside.value * it, insideArc.level).text == insideArc.text
+        }
+        return listOf(
+            WorkLine("Takeout = A90 ${a90.text} x tan(${angleLabel(r.angleDeg)} / 2) ($half) = ${takeout.text}"),
+            WorkLine("Centreline arc = A90 ${a90.text} x $radians rad = ${centre.text}"),
+            WorkLine("Outside arc = (A90 ${a90.text} + OD/2 ${od2.text}) x $radians rad = ${outsideArc.text}"),
+            WorkLine("Inside arc = (A90 ${a90.text} - OD/2 ${od2.text}) x $radians rad = ${insideArc.text}"),
+        )
+    }
 }

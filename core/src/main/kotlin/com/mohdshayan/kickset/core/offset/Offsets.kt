@@ -39,10 +39,16 @@ object SimpleOffset {
         return SimpleOffsetResult(setMm, angleDeg, setMm * m.csc, setMm * m.cot, m)
     }
 
-    fun working(r: SimpleOffsetResult, u: UnitPrefs) = listOf(
-        WorkLine("Set ${u.working(r.setMm)} x csc ${angleLabel(r.angleDeg)} (${LengthFormatter.decimal(r.m.csc, 4)}) = travel ${u.working(r.travelMm)}"),
-        WorkLine("Set ${u.working(r.setMm)} x cot ${angleLabel(r.angleDeg)} (${LengthFormatter.decimal(r.m.cot, 4)}) = run ${u.working(r.runMm)}"),
-    )
+    /** The set is printed exactly and each multiplier carries the places its own line needs. */
+    fun working(r: SimpleOffsetResult, u: UnitPrefs): List<WorkLine> {
+        val set = u.exact(r.setMm)
+        val (travel, csc) = u.product(r.travelMm, set.value, r.m.csc)
+        val (run, cot) = u.product(r.runMm, set.value, r.m.cot)
+        return listOf(
+            WorkLine("Set ${set.text} x csc ${angleLabel(r.angleDeg)} ($csc) = travel ${travel.text}"),
+            WorkLine("Set ${set.text} x cot ${angleLabel(r.angleDeg)} ($cot) = run ${run.text}"),
+        )
+    }
 }
 
 data class RollingOffsetResult(
@@ -70,16 +76,40 @@ object RollingOffset {
         return RollingOffsetResult(setMm, rollMm, t, a, sqrt(t * t + runMm * runMm), runMm, Multipliers(a), true)
     }
 
+    /**
+     * The set, the roll and the run are printed exactly. A true offset is a square root, so it has no
+     * exact form at all: it is printed to as many places as the lines under it need, and those lines
+     * are worked from the figure printed here rather than from the unrounded one behind it.
+     */
     fun working(r: RollingOffsetResult, u: UnitPrefs): List<WorkLine> {
-        val first = WorkLine("True offset = √(set ${u.working(r.setMm)}² + roll ${u.working(r.rollMm)}²) = ${u.working(r.trueOffsetMm)}")
-        return if (!r.angleFromRun) listOf(
-            first,
-            WorkLine("True offset ${u.working(r.trueOffsetMm)} x csc ${angleLabel(r.angleDeg)} (${LengthFormatter.decimal(r.m.csc, 4)}) = travel ${u.working(r.travelMm)}"),
-            WorkLine("True offset ${u.working(r.trueOffsetMm)} x cot ${angleLabel(r.angleDeg)} (${LengthFormatter.decimal(r.m.cot, 4)}) = run ${u.working(r.runMm)}"),
-        ) else listOf(
-            first,
-            WorkLine("Angle = atan(true offset ${u.working(r.trueOffsetMm)} / run ${u.working(r.runMm)}) = ${LengthFormatter.decimal(r.angleDeg, 2)}°"),
-            WorkLine("Travel = √(true offset² + run²) = ${u.working(r.travelMm)}"),
+        val set = u.exact(r.setMm)
+        val roll = u.exact(r.rollMm)
+        val angle = "${LengthFormatter.decimal(r.angleDeg, 2)}°"
+        if (r.angleFromRun) {
+            val run = u.exact(r.runMm)
+            val travel = u.answer(r.travelMm)
+            val t = u.answer(r.trueOffsetMm) { f ->
+                "${LengthFormatter.decimal(deg(atan(f.value / run.value)), 2)}°" == angle &&
+                    u.at(sqrt(f.value * f.value + run.value * run.value), travel.level).text == travel.text
+            }
+            return listOf(
+                WorkLine("True offset = √(set ${set.text}² + roll ${roll.text}²) = ${t.text}"),
+                WorkLine("Angle = atan(true offset ${t.text} / run ${run.text}) = $angle"),
+                WorkLine("Travel = √(true offset ${t.text}² + run ${run.text}²) = ${travel.text}"),
+            )
+        }
+        val travel = u.answer(r.travelMm)
+        val run = u.answer(r.runMm)
+        val t = u.answer(r.trueOffsetMm) { f ->
+            LengthFormatter.multiplierOrNull(r.m.csc) { u.at(f.value * it, travel.level).text == travel.text } != null &&
+                LengthFormatter.multiplierOrNull(r.m.cot) { u.at(f.value * it, run.level).text == run.text } != null
+        }
+        val csc = LengthFormatter.multiplier(r.m.csc) { u.at(t.value * it, travel.level).text == travel.text }
+        val cot = LengthFormatter.multiplier(r.m.cot) { u.at(t.value * it, run.level).text == run.text }
+        return listOf(
+            WorkLine("True offset = √(set ${set.text}² + roll ${roll.text}²) = ${t.text}"),
+            WorkLine("True offset ${t.text} x csc ${angleLabel(r.angleDeg)} ($csc) = travel ${travel.text}"),
+            WorkLine("True offset ${t.text} x cot ${angleLabel(r.angleDeg)} ($cot) = run ${run.text}"),
         )
     }
 }
@@ -110,11 +140,18 @@ object ParallelOffset {
      * (2 x 5 in reading 9 15/16 in), which is exactly what a fitter would catch.
      */
     fun working(r: ParallelOffsetResult, u: UnitPrefs): List<WorkLine> {
-        val factor = LengthFormatter.decimal(r.factor, 4)
+        val spread = u.exact(r.spreadMm)
+        val step = u.answer(r.spreadMm * r.factor)
+        val advances = r.lines.drop(1).map { u.answer(it.advanceMm) }
+        // One multiplier serves every line, so it carries the places the longest line needs.
+        val factor = LengthFormatter.multiplier(r.factor) { f ->
+            u.at(spread.value * f, step.level).text == step.text &&
+                advances.withIndex().all { (k, a) -> u.at(spread.value * f * (k + 1), a.level).text == a.text }
+        }
         return listOf(
-            WorkLine("Advance per line = spread ${u.working(r.spreadMm)} x tan(${angleLabel(r.angleDeg)} / 2) ($factor) = ${u.working(r.spreadMm * r.factor)}"),
-        ) + r.lines.drop(1).map {
-            WorkLine("Line ${it.index}: spread ${u.working(r.spreadMm)} x $factor x ${it.index - 1} = ${u.working(it.advanceMm)}")
+            WorkLine("Advance per line = spread ${spread.text} x tan(${angleLabel(r.angleDeg)} / 2) ($factor) = ${step.text}"),
+        ) + advances.withIndex().map { (k, a) ->
+            WorkLine("Line ${k + 2}: spread ${spread.text} x $factor x ${k + 1} = ${a.text}")
         }
     }
 }

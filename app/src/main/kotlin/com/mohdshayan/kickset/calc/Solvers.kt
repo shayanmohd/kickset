@@ -261,7 +261,7 @@ object TemplateSolver {
                 title = if (i.singleCut) "Miter cut ${angleLabel(cut)}, NPS ${branch.nps}" else "Miter ${i.miterPieces} piece ${i.miterTurn.trim()}° turn, NPS ${branch.nps}"
                 stem = "kickset-miter-nps${branch.nps.replace(' ', '-').replace('/', '_')}"
                 if (!i.singleCut) working += "Cut angle = turn ${i.miterTurn.trim()}° / (2 x ${i.miterPieces - 1} joints) = ${LengthFormatter.decimal(cut, 3)}°"
-                working += "Cutback y = r x tan(${LengthFormatter.decimal(cut, 3)}°) x (1 - cos phi), r = ${u.working(r)}"
+                working += "Cutback y = r x tan(${LengthFormatter.decimal(cut, 3)}°) x (1 - cos phi), r = ${u.exact(r).text}"
             }
             else -> {
                 val header = t.pipe.sizes.firstOrNull { it.nps == i.headerNps } ?: return problem("Pick a header size.")
@@ -282,15 +282,20 @@ object TemplateSolver {
                     stem = "kickset-saddle-nps${branch.nps.replace(' ', '-').replace('/', '_')}-on-nps${header.nps.replace(' ', '-').replace('/', '_')}"
                     working += "Cutback y = R - √(R² - r² sin² phi)"
                 }
-                working += "R = header OD / 2 = ${u.working(headerR)}, r = branch ${basis.label} / 2 = ${u.working(r)}"
+                working += "R = header OD ${u.exact(headerR * 2.0).text} / 2 = ${u.exact(headerR).text}, r = branch ${basis.label} ${u.exact(r * 2.0).text} / 2 = ${u.exact(r).text}"
             }
         }
         val ok = outcome as? TemplateOutcome.Ok ?: return problem("That angle cannot be drawn. Pick another.")
         val c = ok.curve
         val fullTitle = "$title, ${basis.label} basis, $stations stations"
-        working += "Girth = pi x OD ${u.working(od)} = ${u.working(c.girthMm)}, station spacing ${u.working(c.girthMm / stations)}"
+        // The girth is printed to as many places as the spacing under it needs, so dividing what is
+        // printed by the station count gives the spacing printed beside it.
+        val odFigure = u.exact(od)
+        val spacing = u.answer(c.girthMm / stations)
+        val girth = u.answer(c.girthMm) { u.at(it.value / stations, spacing.level).text == spacing.text }
+        working += "Girth = pi x OD ${odFigure.text} = ${girth.text}, station spacing ${spacing.text}"
         val maxIdx = c.ordinatesMm.indexOf(c.maxOrdinateMm)
-        working += "Station ${maxIdx + 1} (${LengthFormatter.decimal(c.phiDeg[maxIdx], 2)}°): cutback ${u.working(c.maxOrdinateMm)}"
+        working += "Station ${maxIdx + 1} (${LengthFormatter.decimal(c.phiDeg[maxIdx], 2)}°): cutback ${u.answer(c.maxOrdinateMm).text}"
         val layout = SheetLayout(paper)
         val wrapSheets = TemplatePages.sheetCount(TemplateDrawings.wrap(c), layout)
         val holeSheets = ok.hole?.let { TemplatePages.sheetCount(TemplateDrawings.hole(it), layout) } ?: 0
