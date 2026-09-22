@@ -161,7 +161,10 @@ class JobDetailViewModel(app: Application, handle: SavedStateHandle) : AndroidVi
         val s = ServiceLocator.appPrefs.current()
         val t = ServiceLocator.tables.get()
         val entries = u.calcs.map { c ->
-            CutSheetEntry(c.label, CalcKind.byName(c.kind)?.label ?: c.kind, c.headline, Replay.working(c.kind, c.inputsJson, c.unitSystem, s.units, s.rootGapMm, s.socketGapMm, s.paper, t))
+            val working = Replay.working(c.kind, c.inputsJson, c.unitSystem, c.settingsJson, s.units, s.rootGapMm, s.socketGapMm, s.paper, t)
+            // Never print a headline over a silent gap: say so instead, so nobody reads the block as complete.
+            CutSheetEntry(c.label, CalcKind.byName(c.kind)?.label ?: c.kind, c.headline,
+                working.ifEmpty { listOf("The working for this entry could not be reproduced. Open it in the app and save it again.") })
         }
         PdfWriter.write(CutSheetPdf.pages(u.job?.name ?: "Job", Files.readableDate(System.currentTimeMillis()), entries, s.paper), u.job?.name ?: "Cut sheet")
     }

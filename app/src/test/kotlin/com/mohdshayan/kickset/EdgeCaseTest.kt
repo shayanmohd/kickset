@@ -338,12 +338,12 @@ class EdgeCaseTest {
 
         // The cut sheet replays the same stored inputs, in the unit each cut was saved in.
         for (unit in listOf("MM", "INCH")) {
-            val lines = Replay.working("ROLLING_OFFSET", json.encodeToString(OffsetInputs.serializer(), offsets), unit, inch, 3.0, 1.6, Paper.A4, tables)
+            val lines = Replay.working("ROLLING_OFFSET", json.encodeToString(OffsetInputs.serializer(), offsets), unit, "", inch, 3.0, 1.6, Paper.A4, tables)
             assertEquals(3, lines.size)
             assertTrue(lines.first().startsWith("True offset"))
         }
         // A row whose stored inputs are damaged replays as nothing rather than throwing.
-        assertEquals(emptyList<String>(), Replay.working("ROLLING_OFFSET", "not json", "MM", inch, 3.0, 1.6, Paper.A4, tables))
-        assertEquals(emptyList<String>(), Replay.working("NO_SUCH_KIND", "{}", "MM", inch, 3.0, 1.6, Paper.A4, tables))
+        assertEquals(emptyList<String>(), Replay.working("ROLLING_OFFSET", "not json", "MM", "", inch, 3.0, 1.6, Paper.A4, tables))
+        assertEquals(emptyList<String>(), Replay.working("NO_SUCH_KIND", "{}", "MM", "", inch, 3.0, 1.6, Paper.A4, tables))
     }
 }

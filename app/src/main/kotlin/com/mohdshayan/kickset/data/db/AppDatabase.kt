@@ -13,6 +13,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.withTransaction
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.mohdshayan.kickset.core.jobs.BackupCalc
 import com.mohdshayan.kickset.core.jobs.BackupJob
 import kotlinx.coroutines.flow.Flow
@@ -40,6 +42,8 @@ data class SavedCalc(
     val headline: String,
     val unitSystem: String,
     val createdAt: Long,
+    /** CalcSettings JSON: the gaps and precision this answer was worked in, so a cut sheet can reproduce it. */
+    @ColumnInfo(defaultValue = "") val settingsJson: String = "",
 )
 
 data class JobSummary(
@@ -100,7 +104,7 @@ interface CalcDao {
     fun observeCount(): Flow<Int>
 }
 
-@Database(entities = [Job::class, SavedCalc::class], version = 1, exportSchema = false)
+@Database(entities = [Job::class, SavedCalc::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun jobDao(): JobDao
     abstract fun calcDao(): CalcDao
@@ -118,23 +122,31 @@ abstract class AppDatabase : RoomDatabase() {
         if (replace) jobDao().deleteAll()
         for (j in jobs) {
             val id = jobDao().insert(Job(name = j.name, notes = j.notes, createdAt = j.createdAt, updatedAt = j.updatedAt))
-            calcDao().insertAll(j.calcs.map { SavedCalc(0, id, it.kind, it.label, it.inputsJson, it.headline, it.unitSystem, it.createdAt) })
+            calcDao().insertAll(j.calcs.map { SavedCalc(0, id, it.kind, it.label, it.inputsJson, it.headline, it.unitSystem, it.createdAt, it.settingsJson) })
         }
     }
 
     suspend fun snapshot(): List<BackupJob> = withTransaction {
         jobDao().all().map { j ->
-            BackupJob(j.name, j.notes, j.createdAt, j.updatedAt, calcDao().forJob(j.id).map { BackupCalc(it.kind, it.label, it.inputsJson, it.headline, it.unitSystem, it.createdAt) })
+            BackupJob(j.name, j.notes, j.createdAt, j.updatedAt, calcDao().forJob(j.id).map { BackupCalc(it.kind, it.label, it.inputsJson, it.headline, it.unitSystem, it.createdAt, it.settingsJson) })
         }
     }
 
     companion object {
+        /** Adds the settings snapshot. Rows written before it keep an empty snapshot and replay on today's settings. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE saved_calcs ADD COLUMN settingsJson TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         @Volatile
         private var instance: AppDatabase? = null
 
         fun get(context: Context): AppDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "kickset.db")
+                    .addMigrations(MIGRATION_1_2)
                     .build().also { instance = it }
             }
     }

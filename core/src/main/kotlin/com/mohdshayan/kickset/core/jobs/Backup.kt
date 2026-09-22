@@ -1,5 +1,6 @@
 package com.mohdshayan.kickset.core.jobs
 
+import com.mohdshayan.kickset.core.offset.validAngle
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -27,6 +28,8 @@ data class BackupCalc(
     val headline: String,
     val unitSystem: String,
     val createdAt: Long,
+    /** The settings this calculation was worked in, as CalcSettings JSON. Empty on files written before 2026. */
+    val settingsJson: String = "",
 )
 
 @Serializable
@@ -52,6 +55,12 @@ sealed interface BackupRead {
     data class Invalid(val reason: String) : BackupRead
 }
 
+/** The outcome of preparing a backup for writing. Nothing is written that the reader would refuse. */
+sealed interface BackupWrite {
+    data class Ready(val bytes: ByteArray) : BackupWrite
+    data class TooLarge(val bytes: Int) : BackupWrite
+}
+
 /**
  * Writes and checks backup files. A file is accepted only when it is complete, says it is a Kickset
  * backup of a schema this build knows, and every field is inside sane limits; anything else is rejected
@@ -68,7 +77,39 @@ object BackupCodec {
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = false }
 
+    /** Megabytes, for the two sentences that have to quote the limit. */
+    const val MAX_MB = MAX_BYTES / (1024 * 1024)
+
     fun encode(file: BackupFile): String = json.encodeToString(BackupFile.serializer(), file)
+
+    /**
+     * Encodes a backup only when the result is inside the limit the reader enforces. Nothing caps how many
+     * calculations a job can hold, so a long-lived library can serialise past [MAX_BYTES]; writing that file
+     * anyway produced a backup the same build then refused to open.
+     */
+    fun encodeForWrite(file: BackupFile): BackupWrite {
+        val bytes = encode(file).toByteArray(Charsets.UTF_8)
+        return if (bytes.size > MAX_BYTES) BackupWrite.TooLarge(bytes.size) else BackupWrite.Ready(bytes)
+    }
+
+    /**
+     * The sentence to show for a backup that could not be read. Every rejection used to collapse into "that
+     * file is not a Kickset backup", which is the wrong thing to say about a file Kickset wrote itself, a
+     * file a newer version wrote, and a file that was merely truncated.
+     */
+    fun explain(reason: String): String = when {
+        reason == "too large" -> "That backup is bigger than $MAX_MB MB, which is more than Kickset can read."
+        reason == "empty" -> "That file is empty."
+        reason.startsWith("unknown schema") -> "That backup was written by a newer version of Kickset."
+        reason == "wrong format" || reason == "not UTF-8 text" -> "That file is not a Kickset backup."
+        reason == "not a complete backup" -> "That file is not a complete Kickset backup. It may have been cut short."
+        else -> "That Kickset backup is damaged: $reason."
+    }
+
+    /** The sentence to show when a library has outgrown one backup file. */
+    fun explainTooLargeToWrite(bytes: Int): String =
+        "This library comes to ${bytes / (1024 * 1024)} MB, and Kickset can only read back $MAX_MB MB, " +
+            "so it was not written. Export the jobs you need as CSV or PDF cut sheets instead."
 
     fun decode(bytes: ByteArray): BackupRead {
         if (bytes.isEmpty()) return BackupRead.Invalid("empty")
@@ -112,11 +153,32 @@ object BackupCodec {
                 if (c.unitSystem !in setOf("MM", "INCH")) return bad("bad calc unit")
                 if (c.createdAt < 0) return bad("bad calc date")
                 if (c.inputsJson.length > MAX_INPUTS) return bad("inputs too long")
+                if (c.settingsJson.length > MAX_INPUTS) return bad("settings too long")
+                if (c.settingsJson.isNotBlank() && CalcSettings.decode(c.settingsJson) == null) return bad("bad calc settings")
                 val obj: JsonObject = try { json.parseToJsonElement(c.inputsJson).jsonObject } catch (e: Exception) { return bad("inputs are not an object") }
                 if (obj.isEmpty()) return bad("inputs empty")
+                inputsProblem(CalcKind.byName(c.kind)!!, c.inputsJson)?.let { return bad(it) }
             }
         }
         return BackupRead.Valid(f)
+    }
+
+    /**
+     * The inputs must deserialise into the class the kind names, and the one numeric field no in-app route
+     * can spoil, the offset angle, must be in range. Without this a hand-edited file is accepted here and
+     * throws later, when the saved calculation is reopened.
+     */
+    private fun inputsProblem(kind: CalcKind, inputsJson: String): String? = try {
+        when (kind) {
+            CalcKind.SIMPLE_OFFSET, CalcKind.ROLLING_OFFSET, CalcKind.PARALLEL_OFFSET -> {
+                val i = CalcJson.json.decodeFromString(OffsetInputs.serializer(), inputsJson)
+                if (!validAngle(i.angle)) "angle out of range" else null
+            }
+            CalcKind.CUT_LENGTH, CalcKind.CUT_ELBOW -> { CalcJson.json.decodeFromString(CutInputs.serializer(), inputsJson); null }
+            CalcKind.MITER, CalcKind.SADDLE, CalcKind.LATERAL -> { CalcJson.json.decodeFromString(TemplateInputs.serializer(), inputsJson); null }
+        }
+    } catch (e: Exception) {
+        "inputs do not read as ${kind.name}"
     }
 
     fun fileName(isoDate: String) = "kickset-backup-$isoDate.json"

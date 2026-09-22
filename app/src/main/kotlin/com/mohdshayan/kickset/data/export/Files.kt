@@ -20,8 +20,15 @@ object Files {
         }
     }
 
-    /** Null when the file cannot be read or is larger than `max` bytes. */
-    suspend fun read(context: Context, uri: Uri, max: Int): ByteArray? = withContext(Dispatchers.IO) {
+    /** Why a read produced no bytes. "Too big" and "unreadable" need different sentences. */
+    sealed interface Read {
+        data class Bytes(val bytes: ByteArray) : Read
+        data object TooLarge : Read
+        data object Failed : Read
+    }
+
+    /** Reads at most `max` bytes, and says which of the two failures happened. */
+    suspend fun read(context: Context, uri: Uri, max: Int): Read = withContext(Dispatchers.IO) {
         try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 val out = ByteArrayOutputStream()
@@ -31,13 +38,13 @@ object Files {
                     val n = input.read(buf)
                     if (n < 0) break
                     total += n
-                    if (total > max) return@withContext null
+                    if (total > max) return@withContext Read.TooLarge
                     out.write(buf, 0, n)
                 }
-                out.toByteArray()
-            }
+                Read.Bytes(out.toByteArray())
+            } ?: Read.Failed
         } catch (e: Exception) {
-            null
+            Read.Failed
         }
     }
 

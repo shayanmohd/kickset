@@ -8,7 +8,9 @@ ordinate table; shows pipe schedule data and ASME B16.5 flange bolt charts; and 
 PDF cut sheet export and one-file backup and restore. It is for journeyman fitters, fabrication shop supervisors and
 apprentices who work in millimetres, fractional inches or both.
 
-Everything runs on the device. The app declares no network permission and sends nothing anywhere.
+Everything runs on the device. The app declares no network permission and sends nothing anywhere, and Android's
+backup service is switched off for it (`allowBackup="false"` plus explicit cloud-backup and device-transfer
+exclusions), so jobs and settings are never copied into a Google account.
 
 ## Build
 

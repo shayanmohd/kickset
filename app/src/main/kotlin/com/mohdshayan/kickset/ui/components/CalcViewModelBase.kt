@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.mohdshayan.kickset.core.jobs.CalcKind
+import com.mohdshayan.kickset.core.jobs.CalcSettings
 import com.mohdshayan.kickset.core.units.UnitSystem
 import com.mohdshayan.kickset.data.db.JobSummary
 import com.mohdshayan.kickset.data.db.SavedCalc
@@ -76,7 +77,11 @@ abstract class CalcViewModelBase<I : Any>(
         viewModelScope.launch {
             val now = System.currentTimeMillis()
             try {
-                ServiceLocator.database.saveCalc(jobId, newJobName, SavedCalc(0, 0, kind.name, label, inputsJson(), headline, unit.name, now), now)
+                // The gaps and precision this answer was worked in are frozen onto the row, so the cut sheet
+                // replays it as it was saved even after the fitter changes a default in Settings.
+                val s = prefs.current()
+                val snapshot = json.encodeToString(CalcSettings.serializer(), CalcSettings(s.inchPrecision, s.mmPrecision, s.rootGapMm, s.socketGapMm))
+                ServiceLocator.database.saveCalc(jobId, newJobName, SavedCalc(0, 0, kind.name, label, inputsJson(), headline, unit.name, now, snapshot), now)
                 prefs.count("save")
                 val prompt = prefs.recordSuccessAndShouldPrompt(now)
                 messageChannel.send(UiMessage("Saved to $label.", prompt))

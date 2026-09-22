@@ -281,4 +281,4 @@ Five weeks solo.
 
 **Emulator smoke.** Units sheet; rolling offset carried to Cut length and saved; saddle PDF opens with bars; CSV; backup, clear data, restore; relaunch persists; rotation; dark mode; 200 percent font; airplane mode.
 
-**android-ship preflight.** Merged manifest with no permissions; release signed with the SocialSure certificate; `verify.sh` clean; privacy URL live before Data safety; Paid set before first release; prices hand-entered; listing recounted; no em-dash or en-dash anywhere; OFL files in `docs/`.
+**android-ship preflight.** Merged manifest with no permission beyond the auto-generated self-scoped receiver permission AndroidX Core adds on targetSdk 33 and above (`DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`), and no permission at all in the source manifest; release signed with the SocialSure certificate; `verify.sh` clean; privacy URL live before Data safety; Paid set before first release; prices hand-entered; listing recounted; no em-dash or en-dash anywhere; OFL files in `docs/`.

@@ -11,3 +11,7 @@ The one memorable thing: shown working. Every answer sits on a dimension line in
 
 Tokens (from blueprint section 7): Plate #EEF1F4/#10161D, Sheet #F7F9FB/#18212A, Ink #16202B/#E3E8ED, Scale #4F5B67/#9AA6B2, Layout Blue #2152B0/#86A8EA, On Blue #F7F9FB/#0E1A2E, Rule #C9D1D9/#2A3540, Weld Red #A8322A/#F08A80.
 Radius: 4 / 8 / 16 dp. The sketch panel is the only card on a calculator screen; lists use dividers.
+
+Landing page hero (docs/index.html): the gradient runs #3A53DE to #2733BE, not the icon ground's #4762EE to
+#2733BE. On #4762EE the 21px lead measured 4.16:1 and the 15px note under the buttons 3.93:1, both under 4.5:1.
+The icon and the Play feature graphic keep #4762EE, because neither carries body text.

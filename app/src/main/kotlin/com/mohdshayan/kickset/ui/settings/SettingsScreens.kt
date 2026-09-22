@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -58,6 +59,7 @@ import com.mohdshayan.kickset.core.jobs.BACKUP_SCHEMA
 import com.mohdshayan.kickset.core.jobs.BackupCodec
 import com.mohdshayan.kickset.core.jobs.BackupFile
 import com.mohdshayan.kickset.core.jobs.BackupRead
+import com.mohdshayan.kickset.core.jobs.BackupWrite
 import com.mohdshayan.kickset.core.offset.Multipliers
 import com.mohdshayan.kickset.core.offset.PRESET_ANGLES
 import com.mohdshayan.kickset.core.offset.rad
@@ -120,22 +122,30 @@ class SettingsViewModel(app: Application) : AndroidViewModel(app) {
 
     fun backup(uri: android.net.Uri) {
         viewModelScope.launch {
-            val bytes = withContext(Dispatchers.IO) {
-                BackupCodec.encode(BackupFile(BACKUP_FORMAT, BACKUP_SCHEMA, System.currentTimeMillis(), prefs.toBackup(), ServiceLocator.database.snapshot())).toByteArray(Charsets.UTF_8)
+            val prepared = withContext(Dispatchers.IO) {
+                BackupCodec.encodeForWrite(BackupFile(BACKUP_FORMAT, BACKUP_SCHEMA, System.currentTimeMillis(), prefs.toBackup(), ServiceLocator.database.snapshot()))
             }
-            if (Files.write(getApplication(), uri, bytes)) {
-                prefs.count("export")
-                messageChannel.send(UiMessage("Backed up to file.", prefs.recordSuccessAndShouldPrompt(System.currentTimeMillis())))
-            } else messageChannel.send(UiMessage("Could not write the file. Pick another folder."))
+            when (prepared) {
+                is BackupWrite.TooLarge -> messageChannel.send(UiMessage(BackupCodec.explainTooLargeToWrite(prepared.bytes)))
+                is BackupWrite.Ready ->
+                    if (Files.write(getApplication(), uri, prepared.bytes)) {
+                        prefs.count("export")
+                        messageChannel.send(UiMessage("Backed up to file.", prefs.recordSuccessAndShouldPrompt(System.currentTimeMillis())))
+                    } else messageChannel.send(UiMessage("Could not write the file. Pick another folder."))
+            }
         }
     }
 
     fun read(uri: android.net.Uri) {
         viewModelScope.launch {
-            val bytes = Files.read(getApplication(), uri, BackupCodec.MAX_BYTES)
-            val result = bytes?.let { withContext(Dispatchers.Default) { BackupCodec.decode(it) } }
-            if (result is BackupRead.Valid) pending = result.file
-            else messageChannel.send(UiMessage("That file is not a Kickset backup."))
+            when (val bytes = Files.read(getApplication(), uri, BackupCodec.MAX_BYTES)) {
+                is Files.Read.TooLarge -> messageChannel.send(UiMessage(BackupCodec.explain("too large")))
+                is Files.Read.Failed -> messageChannel.send(UiMessage("Could not read that file. Pick another one."))
+                is Files.Read.Bytes -> when (val result = withContext(Dispatchers.Default) { BackupCodec.decode(bytes.bytes) }) {
+                    is BackupRead.Valid -> pending = result.file
+                    is BackupRead.Invalid -> messageChannel.send(UiMessage(BackupCodec.explain(result.reason)))
+                }
+            }
         }
     }
 
@@ -235,7 +245,13 @@ fun SettingsScreen(onBack: () -> Unit, onSources: () -> Unit, onMultipliers: () 
 
 @Composable
 private fun GapField(label: String, mm: Double, s: Settings, onSet: (Double) -> Unit) {
-    var text by rememberSaveable(mm, s.unitSystem) { mutableStateOf(if (s.unitSystem == UnitSystem.INCH) LengthFormatter.inchParts(mm, 32).toString() else LengthFormatter.decimal(mm, 1)) }
+    fun render(v: Double) = if (s.unitSystem == UnitSystem.INCH) LengthFormatter.inchParts(v, 32).toString() else LengthFormatter.decimal(v, 1)
+    var text by rememberSaveable(s.unitSystem) { mutableStateOf(render(mm)) }
+    // The field owns its text while the fitter is typing. Re-seeding it from the saved value on every
+    // accepted keystroke would rewrite a typed "2" as "2.0" and make "2.5" impossible to enter, so the
+    // text is re-seeded only when the saved value changes from somewhere else, such as a restored backup.
+    var written by rememberSaveable(s.unitSystem) { mutableStateOf(mm) }
+    LaunchedEffect(mm) { if (mm != written) { text = render(mm); written = mm } }
     val parsed = LengthParser.parse(text, s.unitSystem)
     val error = when {
         parsed is ParsedLength.Invalid -> "Must be a length, like ${if (s.unitSystem == UnitSystem.INCH) "1/8" else "3"}"
@@ -245,8 +261,8 @@ private fun GapField(label: String, mm: Double, s: Settings, onSet: (Double) -> 
     LengthField(label, text, { v ->
         text = v
         val p = LengthParser.parse(v, s.unitSystem)
-        if (p is ParsedLength.Ok && p.mm <= 25.0) onSet(p.mm)
-    }, error, (parsed as? ParsedLength.Ok)?.let { "Saved as ${LengthFormatter.millimetresExact(it.mm)}, ${LengthFormatter.inches(it.mm, 32)}" }, Modifier.fillMaxWidth())
+        if (p is ParsedLength.Ok && p.mm <= 25.0) { written = p.mm; onSet(p.mm) }
+    }, error, (parsed as? ParsedLength.Ok)?.let { "Reads as ${LengthFormatter.millimetresExact(it.mm)}, ${LengthFormatter.inches(it.mm, 32)}" }, Modifier.fillMaxWidth())
 }
 
 // ---------------------------------------------------------------------------------------------- units sheet
@@ -337,11 +353,27 @@ fun MultipliersScreen(onBack: () -> Unit) {
 
 @Composable
 fun LicencesScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    // OFL 1.1 condition 2 asks that the copyright notice and the licence itself travel with the font. The
+    // name tables inside the four bundled TTFs carry the notice; these two files carry the licence, so a
+    // buyer can read it here. The app has no permission that could open a link instead.
+    val ofl = remember(context) {
+        listOf("licences/OFL-Archivo.txt", "licences/OFL-ArchivoNarrow.txt")
+            .map { name -> context.assets.open(name).bufferedReader().use { it.readText().trim() } }
+    }
     ReferencePage("Licences", onBack) {
-        Para("Archivo and Archivo Narrow, copyright The Archivo Project Authors (Omnibus-Type). Bundled under the SIL Open Font License 1.1, which allows use, bundling and redistribution with software; the fonts may not be sold on their own.")
+        Para("Archivo and Archivo Narrow, copyright The Archivo Project Authors (Omnibus-Type). Bundled under the SIL Open Font License 1.1, which allows use, bundling and redistribution with software; the fonts may not be sold on their own. Both licences are printed in full below.")
         Para("AndroidX, Jetpack Compose, Material Components for Compose, Room, DataStore, Navigation, Kotlin, kotlinx.coroutines and kotlinx.serialization: Apache License 2.0.")
         Para("Google Play In-App Review library: Play Core Software Development Kit Terms of Service.")
         Para("Kickset, copyright SocialSure Private Limited.")
+        SelectionContainer {
+            Column {
+                for (text in ofl) {
+                    HorizontalDivider(Modifier.padding(top = 24.dp), color = MaterialTheme.colorScheme.outlineVariant)
+                    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 16.dp))
+                }
+            }
+        }
     }
 }
 
@@ -349,7 +381,7 @@ fun LicencesScreen(onBack: () -> Unit) {
 fun PrivacyScreen(onBack: () -> Unit) {
     ReferencePage("Privacy", onBack) {
         Para("Kickset has no account, no ads, no analytics and no network permission. Nothing you type or save is sent anywhere.")
-        Para("Jobs, saved cuts and settings are stored only on this phone. You can export them to a file you choose with Back up to file, and delete them by deleting a job or clearing the app's storage.")
+        Para("Jobs, saved cuts and settings are stored only on this phone. Android's own backup is switched off for Kickset, so the system does not copy them to your Google account either. You can export them to a file you choose with Back up to file, and delete them by deleting a job or clearing the app's storage.")
         Para("The optional local counts stay on this phone and are off unless you turn them on.")
         Para("If you choose to rate the app when Google Play asks, that review goes through the Play Store app under Google's own terms. Kickset never sees it.")
     }

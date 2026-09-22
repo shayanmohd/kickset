@@ -20,14 +20,19 @@
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
   /* 1. Hero */
-  .hero { background: linear-gradient(135deg, #4762EE 0%, #2733BE 100%); color: var(--onblue); padding: 72px 0 64px; }
+  /* The light stop is #3A53DE, a shade under the icon ground #4762EE: on #4762EE the 21px lead measures
+     4.16:1 and the 15px note 3.93:1, both under 4.5. On #3A53DE they measure 5.09:1 and 4.81:1. */
+  .hero { background: linear-gradient(135deg, #3A53DE 0%, #2733BE 100%); color: var(--onblue); padding: 72px 0 64px; }
   .hero .wrap { display: grid; grid-template-columns: 132px 1fr; gap: 28px; align-items: start; }
   .hero h1 { font-size: 58px; line-height: 1.02; margin: 0 0 12px; }
   .hero p.lead { font-size: 21px; max-width: 34ch; margin: 0 0 24px; color: #E3ECFB; }
-  .price { display: inline-block; font-family: "Archivo Narrow", sans-serif; font-weight: 600; font-size: 19px;
-    border: 1.5px solid rgba(247,249,251,0.55); border-radius: 8px; padding: 6px 12px; margin-right: 12px; }
-  .cta { display: inline-block; background: var(--sheet); color: #2733BE; text-decoration: none;
-    font-family: "Archivo Narrow", sans-serif; font-weight: 600; font-size: 19px; padding: 14px 26px; border-radius: 8px; }
+  /* No Play listing exists yet, so the hero carries a status chip rather than a price and a store
+     button: a page that advertises a purchase and links to a 404 promises something nobody can buy,
+     and it fixes a number in public before the irreversible Paid setting is taken in the console.
+     When the listing is live, put the price back here with the number the console charges, and use
+     the official Google Play badge artwork rather than a styled text button. */
+  .soon { display: inline-block; font-family: "Archivo Narrow", sans-serif; font-weight: 600; font-size: 19px;
+    border: 1.5px solid rgba(247,249,251,0.65); border-radius: 8px; padding: 10px 16px; }
   .hero small { display: block; margin-top: 18px; color: #DCE6F7; font-size: 15px; }
   .mark { width: 132px; height: 132px; }
 
@@ -85,9 +90,8 @@
     <div>
       <h1>Kickset</h1>
       <p class="lead">The pipe fitter's calculator that shows its working, on the phone in your pocket, with no signal.</p>
-      <span class="price">USD 4.99, one time</span>
-      <a class="cta" href="https://play.google.com/store/apps/details?id=com.mohdshayan.kickset">Get it on Google Play</a>
-      <small>One price. No ads, no subscription, no account. Works fully offline.</small>
+      <span class="soon">Coming to Google Play</span>
+      <small>One price, paid once. No ads, no subscription, no account. Works fully offline.</small>
     </div>
   </div>
 </header>
@@ -159,8 +163,8 @@
   <h2>What it will not do</h2>
   <ul>
     <li>Ask for an account, a subscription or a second payment.</li>
-    <li>Ask for a permission. It declares none, so it cannot reach the network.</li>
-    <li>Show an advertisement or send a single byte anywhere.</li>
+    <li>Ask for a device permission. It has no internet, storage, location, camera or microphone permission, so it cannot reach the network.</li>
+    <li>Show an advertisement or send a single byte anywhere. Android's backup service is switched off for it, so not even the system copies your jobs to a Google account.</li>
     <li>Claim a value it cannot source, or a scale it has not drawn on the sheet.</li>
   </ul>
 </section>

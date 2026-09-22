@@ -9,6 +9,7 @@ import com.mohdshayan.kickset.core.fittings.JoinType
 import com.mohdshayan.kickset.core.fittings.TableSet
 import com.mohdshayan.kickset.core.jobs.CalcJson
 import com.mohdshayan.kickset.core.jobs.CalcKind
+import com.mohdshayan.kickset.core.jobs.CalcSettings
 import com.mohdshayan.kickset.core.jobs.CutInputs
 import com.mohdshayan.kickset.core.jobs.OffsetInputs
 import com.mohdshayan.kickset.core.jobs.TemplateInputs
@@ -78,8 +79,13 @@ private fun ro(label: String, u: UnitPrefs, mm: Double) = both(u, mm).let { Read
 data class OffsetsSolved(val fields: Map<String, FieldState>, val outcome: Outcome, val travelMm: Double?, val angleError: String?, val parallelRows: List<Pair<String, String>>)
 
 object OffsetSolver {
+    /**
+     * The stored angle is range-checked too: a hand-edited or corrupted backup can put anything in it,
+     * and an unusable value has to become "pick an angle", never a throw from the geometry.
+     */
     fun angleOf(i: OffsetInputs): Double? =
-        if (i.customAngle.isNotBlank()) i.customAngle.trim().toDoubleOrNull()?.takeIf { validAngle(it) } else i.angle
+        if (i.customAngle.isNotBlank()) i.customAngle.trim().toDoubleOrNull()?.takeIf { validAngle(it) }
+        else i.angle.takeIf { validAngle(it) }
 
     fun solve(i: OffsetInputs, u: UnitPrefs): OffsetsSolved {
         val fields = mutableMapOf<String, FieldState>()
@@ -89,11 +95,15 @@ object OffsetSolver {
         val (spread, spreadF) = readLength(i.spread, "Spread", examples(u, "12 or 11 3/4", "300"), u); fields["spread"] = spreadF
         val angle = angleOf(i)
         val angleError = if (i.customAngle.isNotBlank() && angle == null) "Angle must be between 0 and 90 degrees, like 45" else null
-        val anyError = fields.values.any { it.error != null } || angleError != null
+        // Only the fields this mode draws can block it. A mode keeps the text typed into a field it does not
+        // show, so a global check would refuse to solve and point at a field that is not on the screen.
+        fun errorIn(vararg keys: String) = keys.any { fields[it]?.error != null }
 
         fun result(o: Outcome, travel: Double? = null, rows: List<Pair<String, String>> = emptyList()) = OffsetsSolved(fields, o, travel, angleError, rows)
         when (i.mode) {
             "ROLLING" -> {
+                // With the run switch on, the angle section is hidden and the run replaces it.
+                val anyError = errorIn("set", "roll") || (if (i.rollingSolveAngle) errorIn("run") else angleError != null)
                 if (set == null && i.set.isBlank()) return result(Outcome.Prompt("Enter a set to solve."))
                 if (roll == null && i.roll.isBlank()) return result(Outcome.Prompt("Enter a roll to solve."))
                 if (anyError || set == null || roll == null) return result(Outcome.Prompt("Fix the marked field to solve."))
@@ -108,6 +118,7 @@ object OffsetSolver {
                     mapOf("set" to u.primary(set), "roll" to u.primary(roll), "true" to "True ${u.primary(r.trueOffsetMm)}", "run" to u.primary(r.runMm), "travel" to u.primary(r.travelMm))), r.travelMm)
             }
             "PARALLEL" -> {
+                val anyError = errorIn("spread") || angleError != null
                 if (spread == null && i.spread.isBlank()) return result(Outcome.Prompt("Enter the spread between lines to solve."))
                 if (anyError || spread == null) return result(Outcome.Prompt("Fix the marked field to solve."))
                 val a = angle ?: return result(Outcome.Prompt("Pick an angle to solve."))
@@ -119,6 +130,7 @@ object OffsetSolver {
                     mapOf("spread" to u.primary(spread), "advance" to u.primary(step))), null, rows)
             }
             else -> {
+                val anyError = errorIn("set") || angleError != null
                 if (set == null && i.set.isBlank()) return result(Outcome.Prompt("Enter a set to solve."))
                 if (anyError || set == null) return result(Outcome.Prompt("Fix the marked field to solve."))
                 val a = angle ?: return result(Outcome.Prompt("Pick an angle to solve."))
@@ -162,7 +174,10 @@ object CutSolver {
             return CutSolved(fields, Outcome.Problem("NPS $nps has no ${missing.label} in the ${if (a.join == JoinType.BUTT_WELD) "ASME B16.9" else "ASME B16.11"} table. Pick another size or fitting."))
         }
         if (i.centreToCentre.isBlank()) return CutSolved(fields, Outcome.Prompt("Enter centre to centre to solve."))
-        if (fields.values.any { it.error != null } || ctoc == null) return CutSolved(fields, Outcome.Prompt("Fix the marked field to solve."))
+        // Only the gap field this join draws can block the solve; the other one keeps whatever was typed
+        // under the other join and is not on the screen to fix.
+        val gapKey = if (a.join == JoinType.BUTT_WELD) "rootGap" else "socketGap"
+        if (fields["ctoc"]?.error != null || fields[gapKey]?.error != null || ctoc == null) return CutSolved(fields, Outcome.Prompt("Fix the marked field to solve."))
         val rootGap = if (i.rootGap.isBlank()) rootGapDefault else rg ?: rootGapDefault
         val socketGap = if (i.socketGap.isBlank()) socketGapDefault else sg ?: socketGapDefault
         return when (val o = CutLength.solve(ctoc, CutEnd(a, a.takeoutMm(rowA)), CutEnd(b, b.takeoutMm(rowB)), rootGap, socketGap)) {
@@ -292,10 +307,22 @@ object TemplateSolver {
     }
 }
 
-/** Recomputes a saved calculation for the cut sheet, in the unit it was saved in. */
+/**
+ * Recomputes a saved calculation for the cut sheet, in the settings it was saved in: the unit, the fraction
+ * denominator and both default gaps come from the row's own snapshot, so the working lines still add up to the
+ * headline stored beside them after the fitter changes a default or restores a backup from another phone.
+ * A row saved before snapshots existed has none, and falls back to today's settings.
+ */
 object Replay {
-    fun working(kind: String, inputsJson: String, unit: String, base: UnitPrefs, rootGap: Double, socketGap: Double, paper: Paper, t: TableSet): List<String> = try {
-        val u = base.copy(system = if (unit == "INCH") UnitSystem.INCH else UnitSystem.MM)
+    fun working(kind: String, inputsJson: String, unit: String, settingsJson: String, base: UnitPrefs, rootGapNow: Double, socketGapNow: Double, paper: Paper, t: TableSet): List<String> = try {
+        val saved = CalcSettings.decode(settingsJson)
+        val u = UnitPrefs(
+            system = if (unit == "INCH") UnitSystem.INCH else UnitSystem.MM,
+            inchDenom = saved?.inchPrecision ?: base.inchDenom,
+            mmStep = saved?.mmPrecision ?: base.mmStep,
+        )
+        val rootGap = saved?.rootGapMm ?: rootGapNow
+        val socketGap = saved?.socketGapMm ?: socketGapNow
         val json = CalcJson.json
         when (CalcKind.byName(kind)) {
             CalcKind.SIMPLE_OFFSET, CalcKind.ROLLING_OFFSET, CalcKind.PARALLEL_OFFSET ->

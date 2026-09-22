@@ -63,6 +63,30 @@ data class TemplateInputs(
     val basis: String = "OD",
 )
 
+/**
+ * The settings a saved calculation was worked in, frozen onto the row. Replaying a saved cut for the cut
+ * sheet has to use these, not today's settings: a changed default gap or fraction denominator would print
+ * working lines that contradict the headline saved beside them.
+ */
+@Serializable
+data class CalcSettings(
+    val inchPrecision: Int = 16,
+    val mmPrecision: Double = 1.0,
+    val rootGapMm: Double = 3.0,
+    val socketGapMm: Double = 1.6,
+) {
+    val valid: Boolean
+        get() = inchPrecision in setOf(16, 32) && mmPrecision in setOf(1.0, 0.5) &&
+            rootGapMm.isFinite() && rootGapMm in 0.0..25.0 && socketGapMm.isFinite() && socketGapMm in 0.0..25.0
+
+    companion object {
+        /** Null for a row saved before snapshots existed, or one whose snapshot is unusable. */
+        fun decode(json: String): CalcSettings? =
+            if (json.isBlank()) null
+            else runCatching { CalcJson.json.decodeFromString(serializer(), json) }.getOrNull()?.takeIf { it.valid }
+    }
+}
+
 object CalcJson {
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 }
