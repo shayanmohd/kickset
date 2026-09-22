@@ -2,7 +2,6 @@ package com.mohdshayan.kickset.core.units
 
 import java.util.Locale
 import kotlin.math.abs
-import kotlin.math.roundToLong
 
 /** The two unit systems the whole app switches between. Every length inside the app is a Double in millimetres. */
 enum class UnitSystem { MM, INCH }
@@ -100,11 +99,50 @@ data class InchParts(val negative: Boolean, val whole: Long, val numerator: Long
 }
 
 object LengthFormatter {
+    /**
+     * How close to a rounding boundary a quantity has to sit before it counts as being on it. A cut
+     * that is exactly a quarter of a millimetre comes out of a chain of multiplications and
+     * subtractions a bit or two under, and rounding that down prints a different answer from the one
+     * the decimal it stands for gives. The window is far below anything a fitter can measure and far
+     * above the last bits a double loses along the way.
+     */
+    private const val TIE_ABS = 1e-9
+    private const val TIE_REL = 1e-12
+
+    /** [q] snapped onto the rounding boundary it sits a hair off, so it rounds as its decimal does. */
+    private fun snapToTie(q: Double): Double {
+        if (!q.isFinite()) return q
+        val tie = Math.floor(q) + 0.5
+        return if (abs(q - tie) <= TIE_ABS + TIE_REL * abs(q)) tie else q
+    }
+
+    /** [q] to a whole number, ties away from zero: the one tie rule every displayed length uses. */
+    private fun roundHalfAwayFromZero(q: Double): Double {
+        val floor = Math.floor(q)
+        val rest = q - floor
+        return when {
+            rest > 0.5 -> floor + 1.0
+            rest < 0.5 -> floor
+            q < 0.0 -> floor
+            else -> floor + 1.0
+        }
+    }
+
+    /**
+     * The one place a quantity becomes a whole number of display steps: a quotient on a boundary is
+     * counted as on it, and a boundary goes away from zero. Every length the app prints, in an answer,
+     * in a working line, in a readout and in every export, is rounded through here.
+     */
+    private fun roundQuantity(q: Double): Double {
+        val r = roundHalfAwayFromZero(snapToTie(q))
+        return if (r == 0.0) 0.0 else r // never a negative zero, which would print as "-0"
+    }
+
     /** Rounds to the nearest 1/denom inch first, so 15.999 in becomes 16 and never "15 16/16". */
     fun inchParts(mm: Double, denom: Int): InchParts {
         require(denom > 0 && (denom and (denom - 1)) == 0) { "denominator must be a power of two" }
         val inches = mm / MM_PER_INCH
-        val units = (abs(inches) * denom).roundToLong()
+        val units = roundQuantity(abs(inches) * denom).toLong()
         var num = units % denom
         var den = denom.toLong()
         while (num != 0L && num % 2L == 0L) { num /= 2; den /= 2 }
@@ -121,9 +159,9 @@ object LengthFormatter {
     }
 
     /** One decimal millimetres, used in working lines so the arithmetic can be checked. */
-    fun millimetresExact(mm: Double): String = "${String.format(Locale.ROOT, "%.1f", mm)} mm"
+    fun millimetresExact(mm: Double): String = "${decimal(mm, 1)} mm"
 
-    fun roundTo(value: Double, step: Double): Double = (value / step).roundToLong() * step
+    fun roundTo(value: Double, step: Double): Double = roundQuantity(value / step) * step
 
     fun format(mm: Double, system: UnitSystem, inchDenom: Int, mmStep: Double): String =
         if (system == UnitSystem.INCH) inches(mm, inchDenom) else millimetres(mm, mmStep)
@@ -132,7 +170,7 @@ object LengthFormatter {
     fun other(mm: Double, system: UnitSystem, inchDenom: Int, mmStep: Double): String =
         if (system == UnitSystem.INCH) millimetres(mm, mmStep) else inches(mm, inchDenom)
 
-    fun decimal(value: Double, places: Int): String = String.format(Locale.ROOT, "%.${places}f", value)
+    fun decimal(value: Double, places: Int): String = String.format(Locale.ROOT, "%.${places}f", round(value, places))
 
     /** The length a fraction at [denom] stands for, so a line can be worked from what it prints. */
     fun inchValue(mm: Double, denom: Int): Double {
@@ -144,8 +182,7 @@ object LengthFormatter {
     /** [value] rounded the same way [decimal] writes it, so text and number never disagree. */
     fun round(value: Double, places: Int): Double {
         val f = Math.pow(10.0, places.toDouble())
-        val q = (abs(value) * f).roundToLong() / f
-        return if (value < 0) -q else q
+        return roundQuantity(value * f) / f
     }
 
     /** [value] to [places], without the trailing zeros that would claim precision it does not have. */
